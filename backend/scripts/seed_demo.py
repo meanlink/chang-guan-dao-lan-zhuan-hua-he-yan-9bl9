@@ -1,4 +1,4 @@
-import time, json
+import time, json, logging
 from sqlalchemy import select, func
 from src.config.database import Session
 from migrations.initial import migrate
@@ -32,6 +32,12 @@ def seed():
             db.add(r);db.flush();deliver(db,r)
             db.add(Audit(actor='seed',action='demo.baseline',detail={'dataset':d.id},at=time.time()))
         db.commit()
+        # 展区完成率监测演示：连续下降开警、恢复解除、缺报、更正撤销且保留确认意见
+        try:
+            from scripts.seed_monitoring import seed_monitoring
+            seed_monitoring()
+        except Exception:
+            logging.exception('Monitoring seed skipped')
         counts={model.__tablename__:db.scalar(select(func.count()).select_from(model)) for model in [User,Dataset,Job,Report,Delivery,Audit]}
         print(json.dumps(counts,ensure_ascii=False))
         return counts

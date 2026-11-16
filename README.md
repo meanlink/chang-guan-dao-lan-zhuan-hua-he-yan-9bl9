@@ -6,6 +6,16 @@
 数据接入（JSON/CSV、字段验证、批次指纹）→ 参数化分析（异步 Python worker）→ 结果复核（指标、图形、明细、解释、批准）→ 定时分发（本地收件箱、CSV/JSON、SHA256）；另有业务总览和审计轨迹。
 三个贯穿全栈的实体：Dataset 数据批次、Job 分析任务、Report 分发计划；辅助 User、Audit、Delivery。
 
+## 展区完成率持续监测
+导览改版后对各展区完成率做持续追踪（页面「完成率监测」）。
+- **固定基准**：登记监测时选择一个已获批核验（Job），把该展区 A/B 及合计完成率快照固定为基准，之后不随客流更正改变。
+- **逐日评估**：每日接入 A/B 两方案客流，合计完成率低于「基准 − 下降门槛」记为下降（below）；任一方案缺报记为缺报（missing），**缺报不视作正常**，两者都计入连续异常天数。
+- **告警口径**：异常连续达到设定天数才开告警；首个正常日恢复即自动解除；恢复后再次连续下降可重新告警（每段异常区间独立成警）。
+- **补报与更正**：无数据日提交为补报；已有数据按所见修订号（`FlowRecord.revision`）更正。并发更正凭修订号乐观裁决，过期整笔拒绝；每次更正递增监测 `epoch` 并重算受影响日期。
+- **重算可靠性**：`Recompute` 带 epoch 围栏与游标，分片执行、中断后从断点恢复；旧执行晚回一律 `superseded` 不覆盖新修订；重试幂等不重复开告警；全部受影响日期处理完才在同一事务发布新状态。
+- **撤销与留痕**：更正后失去依据的告警置为 revoked，原确认意见（`AlertConfirmation`）永久保留；每条告警记录生效依据与解除/撤销依据，页面可追查。
+新增实体：Monitor 监测登记、FlowRecord 每日 A/B 客流、DailyState 逐日状态、Alert 告警、AlertConfirmation 确认意见、Recompute 重算任务。后端入口 `src/routes/monitors.py`、规则引擎 `src/services/monitoring.py`；演示数据 `python -m scripts.seed_monitoring`（随 seed_demo 自动执行）。
+
 ## 快速启动
 ```bash
 cp .env.example .env
